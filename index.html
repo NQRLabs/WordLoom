@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WordLoom - Smart Crossword Generator</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+:root{
+  /* Suite palette */
+  --gg-bg:#0c1020; --gg-card:#121735; --gg-ink:#eef1ff; --gg-ink-dim:#b9c6ef;
+  --gg-accent:#7cc9ff; --gg-border:#2b3868;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--gg-bg); color:var(--gg-ink);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, #273056 0%, rgba(23,26,38,0) 60%),
+    radial-gradient(1200px 600px at 88% 110%, #1f2648 0%, rgba(23,26,38,0) 55%);
+  background-repeat:no-repeat; background-attachment:fixed;
+}
+
+/* Cards and accents (match suite look) */
+.gg-card{
+  background:linear-gradient(180deg,#151c3b,#13183a);
+  border:1px solid var(--gg-border);
+  border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.gg-border{ border-color:var(--gg-border)!important; }
+.gg-badge{
+  background:#1a2147; color:#a6b6f0; border:1px solid var(--gg-border);
+}
+.text-dim{ color:var(--gg-ink-dim) }
+
+/* LAYOUT */
+.wrap{
+  display:grid; gap:18px; padding:18px; max-width:1200px; margin:auto; width:100%;
+  grid-template-columns: 1fr; /* mobile-first */
+}
+@media (min-width: 960px){
+  .wrap{ grid-template-columns: 360px 1fr; }
+}
+.panel,.stage{
+  background:linear-gradient(180deg,#151c3b,#13183a);
+  border:1px solid var(--gg-border); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.panel{ padding:14px }
+.stage{ padding:14px; display:grid; grid-template-rows:auto 1fr; min-height:0; }
+
+/* text */
+h1{ font-size:18px; margin:0 0 8px }
+.hint{ color:var(--gg-ink-dim); font-size:12px; margin:6px 0 12px }
+.footer{ color:#9fb4ff; opacity:.7; font-size:12px; margin-top:10px }
+
+/* inputs */
+textarea{
+  width:100%; height:180px; resize:vertical; background:#0f1432; color:var(--gg-ink);
+  border:1px dashed var(--gg-border); border-radius:12px; padding:10px;
+  font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:10px 0 }
+label{ display:flex; align-items:center; gap:8px }
+input[type="checkbox"]{ transform:scale(1.1) }
+input[type="number"]{
+  width:96px; background:#0f1432; color:var(--gg-ink); border:1px solid var(--gg-border);
+  border-radius:10px; padding:8px 10px
+}
+button{
+  appearance:none; border:1px solid var(--gg-border); border-radius:10px; padding:10px 14px;
+  color:#0a0e12; background:var(--gg-accent); font-weight:700; cursor:pointer;
+}
+button.secondary{ background:#1a2147; color:var(--gg-ink) }
+
+/* toolbar */
+.toolbar{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px }
+.stats{ font-size:12px; color:var(--gg-ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+
+/* PREVIEW: square & never obscured */
+.canvas-wrap{
+  position:relative; width:100%;
+  min-height: clamp(300px, 62vh, 900px);
+  aspect-ratio: 1 / 1;
+  background:#ffffff; border-radius:12px; overflow:hidden;
+  border:1px solid #1f2a57;
+}
+canvas{ width:100%; height:100%; display:block; background:#fff; }
+
+/* chips */
+.tag{ display:inline-block; background:#1a2147; border:1px solid var(--gg-border); color:#cfe5ff;
+  padding:2px 8px; border-radius:999px; font-size:11px; margin-right:6px }
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-md bg-body-tertiary sticky-top border-bottom border-dark-subtle">
+  <div class="container-lg">
+    <a class="navbar-brand fw-bold" href="#">WordLoom</a>
+    <span class="navbar-text small text-secondary ms-1">Compact Crossword Generator</span>
+  </div>
+</nav>
+
+<main class="container-lg my-4">
+  <div class="wrap">
+    <aside class="panel gg-card">
+      <h1>WordLoom</h1>
+      <div class="hint">
+        Paste words (one per line or comma-separated). WordLoom uses multi-start stochastic greedy and local hill-climbing
+        to compact the grid and target a square aspect ratio.
+      </div>
+
+      <textarea id="wordsInput" spellcheck="false" placeholder="Example:
+INFORMATION
+THEORY
+ALGORITHM
+PUZZLE
+GRID
+LETTER
+TOKEN
+SQUARE
+CROSS
+WORD"></textarea>
+
+      <div class="row">
+        <button id="generateBtn">Generate</button>
+        <button class="secondary" id="saveBtn" title="Download the current preview as PNG">Save PNG</button>
+      </div>
+
+      <div class="row">
+        <label><input type="checkbox" id="showSolution" checked /> Show solution letters</label>
+      </div>
+
+      <div class="row">
+        <label>Restarts <input id="restarts" type="number" min="1" max="9999" value="200" /></label>
+        <label>Seed <input id="seed" type="number" step="1" value="0" title="0 = random" /></label>
+      </div>
+
+      <div class="hint">
+        Tips:
+        <div class="tag">Longer words help crossings</div>
+        <div class="tag">Use 6+ words</div>
+        <div class="tag">Try more restarts</div>
+      </div>
+
+      <div class="footer">
+        Made for rapid puzzle prototyping. No data leaves your browser.
+      </div>
+    </aside>
+
+    <section class="stage gg-card">
+      <div class="toolbar">
+        <div class="stats" id="stats">Ready.</div>
+        <div class="stats" id="sizeStats"></div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="board" width="1200" height="1200" aria-label="Crossword Preview"></canvas>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+
+const board = document.getElementById('board');
+const ctx = board.getContext('2d');
+const statsEl = document.getElementById('stats');
+const sizeStatsEl = document.getElementById('sizeStats');
+const inputEl = document.getElementById('wordsInput');
+const generateBtn = document.getElementById('generateBtn');
+const saveBtn = document.getElementById('saveBtn');
+const showSolutionEl = document.getElementById('showSolution');
+const restartsEl = document.getElementById('restarts');
+const seedEl = document.getElementById('seed');
+
+let currentLayout = null;
+let currentShowSolution = true;
+
+/* RNG utils */
+let randSeed = {value:0};
+function rand(seedObj){
+  if (!seedObj.value) { seedObj.value = Math.floor(Math.random() * 2147483648); }
+  let t = seedObj.value += 0x6D2B79F5;
+  t = Math.imul(t ^ (t >>> 15), 1 | t);
+  t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+function shuffle(arr, rngFn = Math.random){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(rngFn() * (i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* Helpers */
+function parseWords(raw){
+  const words = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9,\n \t-]/g,'')
+    .split(/[\s,]+/)
+    .map(w=>w.trim().replace(/[^A-Z0-9-]/g,''))
+    .filter(w=>w.length>=2);
+  const seen = new Set(); const out=[];
+  for(const w of words.sort((a,b)=>b.length-a.length)){
+    if(!seen.has(w)){seen.add(w); out.push(w);}
+  }
+  return out;
+}
+
+function key(x,y){return x+','+y;}
+function neighbors4(x,y){return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];}
+
+/* Placement core */
+function placeWord(grid, word, placements, rng){
+  if (placements.length===0){
+    return {word, x:0, y:0, dir:'H'};
+  }
+  const candidates=[];
+  const letterIndex = new Map();
+  for (const k in grid){
+    const ch = grid[k].ch;
+    if(!letterIndex.has(ch)) letterIndex.set(ch, []);
+    const [gx,gy]=k.split(',').map(Number);
+    letterIndex.get(ch).push([gx,gy]);
+  }
+  for (let wi=0; wi<word.length; wi++){
+    const ch = word[wi];
+    const hits = letterIndex.get(ch) || [];
+    for (const [gx,gy] of hits){
+      for (const dir of ['H','V']){
+        const x = dir==='H' ? gx - wi : gx;
+        const y = dir==='V' ? gy - wi : gy;
+        if (!canPlace(grid, word, x, y, dir)) continue;
+        const overlap = countOverlap(grid, word, x, y, dir);
+        const footprint = incrementalFootprint(placements, word, x, y, dir);
+        const borderTouch = borderContacts(grid, word, x, y, dir);
+        const score = overlap*10 - footprint.areaGrowth*0.25 - Math.abs(footprint.dAspect)*2 + borderTouch*0.25;
+        candidates.push({word,x,y,dir,score, overlap});
+      }
+    }
+  }
+  if (candidates.length===0){
+    const dirs = ['H','V'];
+    for (let radius=0; radius<Math.max(8,word.length); radius++){
+      for (let tries=0; tries<20; tries++){
+        const dir = dirs[Math.floor(rng()*2)];
+        const x = Math.floor((rng()-0.5)*radius*2);
+        const y = Math.floor((rng()-0.5)*radius*2);
+        if (canPlace(grid, word, x, y, dir)){
+          const overlap = countOverlap(grid, word, x, y, dir);
+          const footprint = incrementalFootprint(placements, word, x, y, dir);
+          const score = overlap*10 - footprint.areaGrowth*0.25 - Math.abs(footprint.dAspect)*2;
+          candidates.push({word,x,y,dir,score, overlap});
+        }
+      }
+      if (candidates.length) break;
+    }
+  }
+  if (candidates.length===0) return null;
+  candidates.sort((a,b)=>b.score-a.score);
+  const topK = Math.max(1, Math.min(5, Math.floor(candidates.length*0.25)));
+  return candidates[Math.floor(rng()*topK)];
+}
+
+function canPlace(grid, word, x, y, dir){
+  for (let i=0;i<word.length;i++){
+    const cx = dir==='H' ? x+i : x;
+    const cy = dir==='V' ? y+i : y;
+    const k = key(cx,cy);
+    const cell = grid[k];
+    if (cell && cell.ch !== word[i]) return false;
+    if (!cell){
+      if (dir==='H'){
+        const up = grid[key(cx,cy-1)];
+        const dn = grid[key(cx,cy+1)];
+        if (up && !isSameLineWord(grid, cx, cy-1, cx, cy)) return false;
+        if (dn && !isSameLineWord(grid, cx, cy+1, cx, cy)) return false;
+      } else {
+        const lf = grid[key(cx-1,cy)];
+        const rt = grid[key(cx+1,cy)];
+        if (lf && !isSameLineWord(grid, cx-1, cy, cx, cy)) return false;
+        if (rt && !isSameLineWord(grid, cx+1, cy, cx, cy)) return false;
+      }
+    }
+  }
+  const pre = dir==='H' ? key(x-1,y) : key(x,y-1);
+  const post = dir==='H' ? key(x+word.length,y) : key(x,y+word.length);
+  if (grid[pre]) return false;
+  if (grid[post]) return false;
+  return true;
+}
+function isSameLineWord(grid, x1,y1,x2,y2){ return (x1===x2 && y1===y2); }
+function countOverlap(grid, word, x, y, dir){
+  let c=0;
+  for (let i=0;i<word.length;i++){
+    const cx = dir==='H' ? x+i : x;
+    const cy = dir==='V' ? y+i : y;
+    const cell = grid[key(cx,cy)];
+    if (cell && cell.ch===word[i]) c++;
+  }
+  return c;
+}
+function incrementalFootprint(placements, word, x, y, dir){
+  const bb = bboxFromPlacements(placements);
+  const after = bboxFromPlacements([...placements,{word,x,y,dir}]);
+  const area0 = (bb.w||1)*(bb.h||1), area1 = after.w*after.h;
+  const areaGrowth = area1 - area0;
+  const aspect0 = bb.h? (bb.w/bb.h) : 1;
+  const aspect1 = after.w/after.h;
+  const dAspect = (Math.max(aspect1,1/aspect1)-1) - (Math.max(aspect0||1, 1/(aspect0||1))-1);
+  return {areaGrowth, dAspect};
+}
+function borderContacts(grid, word, x, y, dir){
+  let c=0;
+  for (let i=0;i<word.length;i++){
+    const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
+    for (const [nx,ny] of neighbors4(cx,cy)){ if (grid[key(nx,ny)]) c++; }
+  }
+  return c;
+}
+function bboxFromPlacements(placements){
+  if (placements.length===0) return {minx:0,miny:0,w:0,h:0};
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  for (const p of placements){
+    const {x,y,dir,word}=p;
+    const ex = dir==='H' ? x+word.length-1 : x;
+    const ey = dir==='V' ? y+word.length-1 : y;
+    minx = Math.min(minx,x,ex); miny = Math.min(miny,y,ey);
+    maxx = Math.max(maxx,x,ex); maxy = Math.max(maxy,y,ey);
+  }
+  return {minx,miny,w:maxx-minx+1,h:maxy-miny+1};
+}
+function buildGrid(placements){
+  const grid={};
+  for (const {word,x,y,dir} of placements){
+    for (let i=0;i<word.length;i++){
+      const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
+      const k = key(cx,cy);
+      if (!grid[k]) grid[k] = {ch:word[i], count:0};
+      if (grid[k].ch===word[i]) grid[k].count++;
+    }
+  }
+  return grid;
+}
+
+/* Scoring */
+function layoutScore(placements){
+  const bb = bboxFromPlacements(placements);
+  const grid = buildGrid(placements);
+  const usedCells = Object.keys(grid).length;
+  const letters = placements.reduce((s,p)=>s+p.word.length,0);
+  const crossings = Object.values(grid).filter(c=>c.count>1).length;
+  const area = bb.w*bb.h;
+  const fillBBox = letters / Math.max(area,1);
+  const aspect = bb.w && bb.h ? (bb.w/bb.h) : 1;
+  const aspectPenalty = Math.max(aspect,1/aspect)-1;
+  const holes = countHoles(grid);
+  const score =
+    area*0.7 +
+    aspectPenalty*400 +
+    (1-fillBBox)*800 +
+    holes*30 -
+    crossings*8;
+  return {score, meta:{bb,usedCells,letters,crossings,fillBBox,holes}};
+}
+function countHoles(grid){
+  const coords = Object.keys(grid).map(s=>s.split(',').map(Number));
+  if (!coords.length) return 0;
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  for (const [x,y] of coords){minx=Math.min(minx,x);miny=Math.min(miny,y);maxx=Math.max(maxx,x);maxy=Math.max(maxy,y);}
+  let holes=0;
+  for (let y=miny;y<=maxy;y++){
+    for (let x=minx;x<=maxx;x++){
+      const k = key(x,y);
+      if (grid[k]) continue;
+      const nb = neighbors4(x,y).filter(([nx,ny])=>grid[key(nx,ny)]);
+      if (nb.length===4) holes++;
+    }
+  }
+  return holes;
+}
+
+/* Local improvement */
+function validatePlacements(placements){
+  const grid={};
+  for (const {word,x,y,dir} of placements){
+    const pre = dir==='H' ? key(x-1,y) : key(x,y-1);
+    const post = dir==='H' ? key(x+word.length,y) : key(x,y+word.length);
+    if (grid[pre] || grid[post]) return false;
+    for (let i=0;i<word.length;i++){
+      const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
+      const k = key(cx,cy); const cell = grid[k];
+      if (cell && cell.ch!==word[i]) return false;
+      if (!cell){
+        if (dir==='H'){
+          if (grid[key(cx,cy-1)] || grid[key(cx,cy+1)]) return false;
+        } else {
+          if (grid[key(cx-1,cy)] || grid[key(cx+1,cy)]) return false;
+        }
+      }
+      grid[k] = {ch:word[i]};
+    }
+  }
+  return true;
+}
+function localImprove(placements){
+  let best = placements.map(p=>({...p}));
+  let {score:bestScore} = layoutScore(best);
+  const rngFn = () => rand(randSeed);
+  for (let iter=0; iter<200; iter++){
+    const idx = Math.floor(Math.random()*best.length);
+    const variant = best.map(p=>({...p}));
+    const target = variant[idx];
+    const original = {...target};
+    const tries = [
+      {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+      {flip:true}
+    ];
+    shuffle(tries, rngFn);
+    let improved=false;
+    for (const t of tries){
+      Object.assign(target, original);
+      if (t.flip) target.dir = target.dir==='H'?'V':'H';
+      else {target.x+=t.dx; target.y+=t.dy;}
+      if (!validatePlacements(variant)) continue;
+      const {score} = layoutScore(variant);
+      if (score < bestScore){
+        bestScore = score;
+        best = variant.map(p=>({...p}));
+        improved=true;
+        break;
+      }
+    }
+  }
+  return best;
+}
+
+/* Driver */
+function generateCrossword(words, restarts=200, seed=0){
+  randSeed.value = seed|0;
+  const rng = ()=>rand(randSeed);
+  const baseOrder = [...words].sort((a,b)=>b.length-a.length);
+
+  let best = null, bestScore = Infinity, bestMeta=null;
+
+  outer: for (let r=0;r<restarts;r++){
+    const order = [...baseOrder];
+    for (let i=0;i<order.length;i++){
+      const j = Math.max(0, Math.min(order.length-1, i + Math.floor((rng()-0.5)*3)));
+      [order[i],order[j]]=[order[j],order[i]];
+    }
+    const placements=[];
+    let grid={};
+    for (let w of order){
+      const p = placeWord(grid, w, placements, rng);
+      if (!p){ continue; }
+      placements.push(p);
+      grid = buildGrid(placements);
+    }
+    if (placements.length===0) continue;
+
+    let improved = localImprove(placements);
+    const {score, meta} = layoutScore(improved);
+    if (score < bestScore){ bestScore = score; best = improved; bestMeta = meta; }
+    if (bestMeta && bestMeta.fillBBox>0.70 &&
+        (Math.max(bestMeta.bb.w/bestMeta.bb.h, bestMeta.bb.h/bestMeta.bb.w) < 1.15)){
+      break outer;
+    }
+  }
+  return {placements:best||[], meta:bestMeta||{bb:{w:0,h:0},letters:0,crossings:0,fillBBox:0,usedCells:0}};
+}
+
+/* Render */
+function normalizePlacements(placements){
+  const bb = bboxFromPlacements(placements);
+  const dx = -bb.minx, dy=-bb.miny;
+  return placements.map(p=>({...p,x:p.x+dx,y:p.y+dy}));
+}
+function render(layout, showSolution=true){
+  ctx.clearRect(0,0,board.width,board.height);
+  if (!layout || layout.placements.length===0){
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,board.width,board.height);
+    ctx.fillStyle='#888';
+    ctx.font='16px system-ui, sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('Your crossword will appear here.', board.width/2, board.height/2);
+    return;
+  }
+  const placements = normalizePlacements(layout.placements);
+  const grid = buildGrid(placements);
+  const bb = bboxFromPlacements(placements);
+
+  const pad = 40;
+  const cols = bb.w, rows = bb.h;
+  const cell = Math.floor(Math.min((board.width-2*pad)/cols, (board.height-2*pad)/rows));
+  const ox = Math.floor((board.width - cell*cols)/2);
+  const oy = Math.floor((board.height - cell*rows)/2);
+
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,board.width,board.height);
+
+  ctx.lineWidth=1;
+  ctx.strokeStyle='#111';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font = Math.floor(cell*0.55) + 'px ui-monospace, Menlo, Consolas, monospace';
+
+  for (let y=0;y<rows;y++){
+    for (let x=0;x<cols;x++){
+      const k = key(x,y);
+      if (grid[k]){
+        ctx.fillStyle='#ffffff';
+        ctx.fillRect(ox+x*cell, oy+y*cell, cell, cell);
+        ctx.strokeStyle='#000000';
+        ctx.strokeRect(ox+x*cell+0.5, oy+y*cell+0.5, cell-1, cell-1);
+        if (showSolution){
+          ctx.fillStyle='#111';
+          ctx.fillText(grid[k].ch, ox+x*cell + cell/2, oy+y*cell + cell/2 + 0.5);
+        }
+      } else {
+        ctx.fillStyle='#000000';
+        ctx.fillRect(ox+x*cell, oy+y*cell, cell, cell);
+      }
+    }
+  }
+  ctx.strokeStyle='#2b2b2b';
+  ctx.lineWidth=2;
+  ctx.strokeRect(ox-1, oy-1, cell*cols+2, cell*rows+2);
+}
+function updateStats(layout){
+  if (!layout || layout.placements.length===0){
+    statsEl.textContent = 'No layout.';
+    sizeStatsEl.textContent = '';
+    return;
+  }
+  const m = layout.meta;
+  const ratio = m.bb.w && m.bb.h ? (m.bb.w/m.bb.h) : 1;
+  statsEl.textContent =
+    'Letters: ' + m.letters +
+    ' | Crossings: ' + m.crossings +
+    ' | Fill-in-BBox: ' + (m.fillBBox*100).toFixed(1) + '%';
+  sizeStatsEl.textContent =
+    'Grid: ' + m.bb.w + 'x' + m.bb.h +
+    ' (aspect ' + (Math.max(ratio,1/ratio)).toFixed(3) + ' from square)';
+}
+
+/* UI */
+generateBtn.addEventListener('click', ()=>{
+  const list = parseWords(inputEl.value);
+  if (list.length<2){
+    alert('Please provide at least two valid words (letters/numbers/hyphen).');
+    return;
+  }
+  const restarts = Math.max(1, Math.min(5000, parseInt(restartsEl.value||200,10)));
+  const seed = parseInt(seedEl.value||0,10);
+  const t0 = performance.now();
+  const layout = generateCrossword(list, restarts, seed);
+  const t1 = performance.now();
+
+  currentLayout = layout;
+  updateStats(layout);
+  currentShowSolution = showSolutionEl.checked;
+  render(layout, currentShowSolution);
+  const ms = Math.max(1, Math.round(t1-t0));
+  statsEl.textContent += ' | Built in ' + ms + ' ms' +
+    ' | Words placed: ' + layout.placements.length + '/' + list.length;
+});
+
+showSolutionEl.addEventListener('change', (e)=>{
+  currentShowSolution = !!e.target.checked;
+  render(currentLayout, currentShowSolution);
+});
+
+saveBtn.addEventListener('click', ()=>{
+  if (!currentLayout || currentLayout.placements.length===0){
+    alert('Nothing to save yet - generate a crossword first.');
+    return;
+  }
+  const url = board.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wordloom-crossword.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
+
+/* Initial render & demo content */
+render(null, true);
+inputEl.value = 'INFORMATION\nTHEORY\nALGORITHM\nPUZZLE\nGRID\nLETTER\nTOKEN\nSQUARE\nCROSS\nWORD\nSEARCH\nSTATE\nHEURISTIC\nCOMPACT\nRANDOM\nRESTARTS\nSEED';
+</script>
+</body>
+</html>
