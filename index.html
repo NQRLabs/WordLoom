@@ -1,548 +1,602 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ghostmark - Seeded LSB Image Steganography</title>
+<title>WordLoom - Smart Crossword Generator</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
 <style>
-  :root {
-    --bg:#0e0f12; --fg:#e7e7ea; --muted:#a6a7ad; --accent:#7bdcff; --card:#15171c; --border:#272a31;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";
-    background:radial-gradient(1200px 600px at 20% -10%,#1b1f28 0%,var(--bg) 60%) fixed var(--bg); color:var(--fg);
-    display:flex; align-items:flex-start; justify-content:center; padding:24px;
-  }
-  .wrap{width:min(1100px,100%)}
-  h1{margin:0 0 8px; font-weight:700; letter-spacing:.3px}
-  .sub{color:var(--muted); margin-bottom:18px}
-  .tabs{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap}
-  .tabbtn{border:1px solid var(--border); background:var(--card); color:var(--fg); padding:10px 14px; border-radius:12px; cursor:pointer}
-  .tabbtn.active{outline:2px solid var(--accent)}
-  .card{background:linear-gradient(180deg,#161922,#111318); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:16px}
-  .grid{display:grid; gap:16px; grid-template-columns:1fr 1fr}
-  .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
-  label.upl{display:inline-block; border:1px dashed var(--border); padding:10px 12px; border-radius:12px; cursor:pointer; background:#0f1218}
-  input[type="file"]{display:none}
-  input[type="number"], input[type="text"]{
-    background:#0f1218; color:var(--fg); border:1px solid var(--border); padding:8px 10px; border-radius:10px; min-width:120px;
-  }
-  input[type="checkbox"], input[type="radio"]{accent-color:#58c8ff}
-  button{
-    background:linear-gradient(180deg,#2a2f3b,#1e2230); color:var(--fg); border:1px solid var(--border);
-    padding:10px 14px; border-radius:12px; cursor:pointer;
-  }
-  button.primary{outline:none}
-  button.primary:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-  button:active{transform:translateY(1px); filter:brightness(0.95)}
-  .canvwrap{background:#0b0d12; border:1px solid var(--border); border-radius:12px; padding:8px}
-  canvas{width:100%; height:auto; display:block; border-radius:8px; background:#000}
-  .hint{color:var(--muted); font-size:12px}
-  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; background:#1b1f27; padding:2px 6px; border-radius:6px; border:1px solid #2a2e38}
-  .foot{color:var(--muted); font-size:12px; margin-top:8px}
-  .warn{color:#ffb86c}
-  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+:root{
+  /* Suite palette */
+  --gg-bg:#0c1020; --gg-card:#121735; --gg-ink:#eef1ff; --gg-ink-dim:#b9c6ef;
+  --gg-accent:#7cc9ff; --gg-border:#2b3868;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--gg-bg); color:var(--gg-ink);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, #273056 0%, rgba(23,26,38,0) 60%),
+    radial-gradient(1200px 600px at 88% 110%, #1f2648 0%, rgba(23,26,38,0) 55%);
+  background-repeat:no-repeat; background-attachment:fixed;
+}
+
+/* Cards and accents (match suite look) */
+.gg-card{
+  background:linear-gradient(180deg,#151c3b,#13183a);
+  border:1px solid var(--gg-border);
+  border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.gg-border{ border-color:var(--gg-border)!important; }
+.gg-badge{
+  background:#1a2147; color:#a6b6f0; border:1px solid var(--gg-border);
+}
+.text-dim{ color:var(--gg-ink-dim) }
+
+/* LAYOUT */
+.wrap{
+  display:grid; gap:18px; padding:18px; max-width:1200px; margin:auto; width:100%;
+  grid-template-columns: 1fr; /* mobile-first */
+}
+@media (min-width: 960px){
+  .wrap{ grid-template-columns: 360px 1fr; }
+}
+.panel,.stage{
+  background:linear-gradient(180deg,#151c3b,#13183a);
+  border:1px solid var(--gg-border); border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.panel{ padding:14px }
+.stage{ padding:14px; display:grid; grid-template-rows:auto 1fr; min-height:0; }
+
+/* text */
+h1{ font-size:18px; margin:0 0 8px }
+.hint{ color:var(--gg-ink-dim); font-size:12px; margin:6px 0 12px }
+.footer{ color:#9fb4ff; opacity:.7; font-size:12px; margin-top:10px }
+
+/* inputs */
+textarea{
+  width:100%; height:180px; resize:vertical; background:#0f1432; color:var(--gg-ink);
+  border:1px dashed var(--gg-border); border-radius:12px; padding:10px;
+  font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:10px 0 }
+label{ display:flex; align-items:center; gap:8px }
+input[type="checkbox"]{ transform:scale(1.1) }
+input[type="number"]{
+  width:96px; background:#0f1432; color:var(--gg-ink); border:1px solid var(--gg-border);
+  border-radius:10px; padding:8px 10px
+}
+button{
+  appearance:none; border:1px solid var(--gg-border); border-radius:10px; padding:10px 14px;
+  color:#0a0e12; background:var(--gg-accent); font-weight:700; cursor:pointer;
+}
+button.secondary{ background:#1a2147; color:var(--gg-ink) }
+
+/* toolbar */
+.toolbar{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px }
+.stats{ font-size:12px; color:var(--gg-ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+
+/* PREVIEW: square & never obscured */
+.canvas-wrap{
+  position:relative; width:100%;
+  min-height: clamp(300px, 62vh, 900px);
+  aspect-ratio: 1 / 1;
+  background:#ffffff; border-radius:12px; overflow:hidden;
+  border:1px solid #1f2a57;
+}
+canvas{ width:100%; height:100%; display:block; background:#fff; }
+
+/* chips */
+.tag{ display:inline-block; background:#1a2147; border:1px solid var(--gg-border); color:#cfe5ff;
+  padding:2px 8px; border-radius:999px; font-size:11px; margin-right:6px }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Ghostmark</h1>
-  <div class="sub">
-    Seeded, randomized LSB steganography with grayscale plus Floyd-Steinberg dithering. Encode and decode in your browser.
-    <span class="hint"><strong>Privacy:</strong> All processing happens locally in your browser. Images are not uploaded.</span>
+
+<nav class="navbar navbar-expand-md bg-body-tertiary sticky-top border-bottom border-dark-subtle">
+  <div class="container-lg">
+    <a class="navbar-brand fw-bold" href="#">WordLoom</a>
+    <span class="navbar-text small text-secondary ms-1">Compact Crossword Generator</span>
   </div>
+</nav>
 
-  <div class="tabs">
-    <button class="tabbtn active" data-tab="encode">Encode</button>
-    <button class="tabbtn" data-tab="decode">Decode</button>
+<main class="container-lg my-4">
+  <div class="wrap">
+    <aside class="panel gg-card">
+      <h1>WordLoom</h1>
+      <div class="hint">
+        Paste words (one per line or comma-separated). WordLoom uses multi-start stochastic greedy and local hill-climbing
+        to compact the grid and target a square aspect ratio.
+      </div>
+
+      <textarea id="wordsInput" spellcheck="false" placeholder="Example:
+INFORMATION
+THEORY
+ALGORITHM
+PUZZLE
+GRID
+LETTER
+TOKEN
+SQUARE
+CROSS
+WORD"></textarea>
+
+      <div class="row">
+        <button id="generateBtn">Generate</button>
+        <button class="secondary" id="saveBtn" title="Download the current preview as PNG">Save PNG</button>
+      </div>
+
+      <div class="row">
+        <label><input type="checkbox" id="showSolution" checked /> Show solution letters</label>
+      </div>
+
+      <div class="row">
+        <label>Restarts <input id="restarts" type="number" min="1" max="9999" value="200" /></label>
+        <label>Seed <input id="seed" type="number" step="1" value="0" title="0 = random" /></label>
+      </div>
+
+      <div class="hint">
+        Tips:
+        <div class="tag">Longer words help crossings</div>
+        <div class="tag">Use 6+ words</div>
+        <div class="tag">Try more restarts</div>
+      </div>
+
+      <div class="footer">
+        Made for rapid puzzle prototyping. No data leaves your browser.
+      </div>
+    </aside>
+
+    <section class="stage gg-card">
+      <div class="toolbar">
+        <div class="stats" id="stats">Ready.</div>
+        <div class="stats" id="sizeStats"></div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="board" width="1200" height="1200" aria-label="Crossword Preview"></canvas>
+      </div>
+    </section>
   </div>
-
-  <!-- ENCODE -->
-  <section id="encode" class="card">
-    <div class="row">
-      <label class="upl">Upload Cover Image <input id="coverFile" type="file" accept="image/*"></label>
-      <label class="upl">Upload Hidden Image <input id="hiddenFile" type="file" accept="image/*"></label>
-      <span class="hint">Tip: the hidden image will be resized to match the cover dimensions.</span>
-    </div>
-
-    <div class="row">
-      <span>Seed / Passcode:</span>
-      <input id="seedInput" type="text" placeholder="Leave blank to auto-generate" />
-      <button id="btnRandSeed">Randomize</button>
-    </div>
-
-    <div class="row">
-      <label><input id="chkEmbedSeed" type="checkbox" checked> Embed seed in image (recommended)</label>
-      <span id="noEmbedNote" class="hint"></span>
-    </div>
-
-    <div class="row">
-      <button id="btnPrep" class="primary">1) Prepare Hidden (Grayscale + Dither)</button>
-      <button id="btnEncode" disabled>2) Encode into Cover</button>
-      <button id="btnDownload" disabled>Download Stego PNG</button>
-    </div>
-
-    <div class="grid">
-      <div>
-        <h3>Hidden (BW Dither Preview)</h3>
-        <div class="canvwrap"><canvas id="hiddenDitherCanvas"></canvas></div>
-      </div>
-      <div>
-        <h3>Stego (Final Preview)</h3>
-        <div class="canvwrap"><canvas id="stegoCanvas"></canvas></div>
-      </div>
-    </div>
-
-    <div class="foot">
-      Algorithms: grayscale = ITU-R BT.601 luma (0.299R, 0.587G, 0.114B). Dithering = Floyd-Steinberg (7/16, 3/16, 5/16, 1/16).
-      LSB parity randomized per pixel with a Mulberry32 PRNG from a 32-bit seed; channel choice randomized per pixel.
-    </div>
-  </section>
-
-  <!-- DECODE -->
-  <section id="decode" class="card" style="display:none">
-    <div class="row">
-      <label class="upl">Upload Stego Image <input id="stegoInFile" type="file" accept="image/*"></label>
-      <button id="btnDecode" class="primary" disabled>Decode</button>
-    </div>
-
-    <div class="row">
-      <label><input type="radio" name="decmode" value="auto" checked> Auto: read embedded seed</label>
-      <label><input type="radio" name="decmode" value="manual"> Manual seed/passcode</label>
-      <input id="manualSeed" type="text" placeholder="Enter seed or passphrase" disabled />
-    </div>
-
-    <div class="row">
-      <span>Seed used:</span>
-      <span id="recoveredSeed" class="kbd">-</span>
-    </div>
-
-    <div class="grid">
-      <div>
-        <h3>Decoded Hidden (BW)</h3>
-        <div class="canvwrap"><canvas id="decodedCanvas"></canvas></div>
-      </div>
-      <div>
-        <h3>Stego Image (Input Preview)</h3>
-        <div class="canvwrap"><canvas id="stegoInCanvas"></canvas></div>
-      </div>
-    </div>
-
-    <div class="foot">
-      Hint: If the image was encoded without embedding the seed, pick "Manual seed/passcode" and enter the same value used during encoding.
-    </div>
-  </section>
-</div>
+</main>
 
 <script>
-/* ---------- Utilities ---------- */
-function loadImageFile(file){
-  return new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>resolve(img);
-    img.onerror=reject;
-    img.src=URL.createObjectURL(file);
-  });
+
+const board = document.getElementById('board');
+const ctx = board.getContext('2d');
+const statsEl = document.getElementById('stats');
+const sizeStatsEl = document.getElementById('sizeStats');
+const inputEl = document.getElementById('wordsInput');
+const generateBtn = document.getElementById('generateBtn');
+const saveBtn = document.getElementById('saveBtn');
+const showSolutionEl = document.getElementById('showSolution');
+const restartsEl = document.getElementById('restarts');
+const seedEl = document.getElementById('seed');
+
+let currentLayout = null;
+let currentShowSolution = true;
+
+/* RNG utils */
+let randSeed = {value:0};
+function rand(seedObj){
+  if (!seedObj.value) { seedObj.value = Math.floor(Math.random() * 2147483648); }
+  let t = seedObj.value += 0x6D2B79F5;
+  t = Math.imul(t ^ (t >>> 15), 1 | t);
+  t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
-function makeCanvasLike(img){
-  const c=document.createElement('canvas');
-  c.width=img.naturalWidth||img.width;
-  c.height=img.naturalHeight||img.height;
-  c.getContext('2d').drawImage(img,0,0);
+function shuffle(arr, rngFn = Math.random){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(rngFn() * (i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* Helpers */
+function parseWords(raw){
+  const words = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9,\n \t-]/g,'')
+    .split(/[\s,]+/)
+    .map(w=>w.trim().replace(/[^A-Z0-9-]/g,''))
+    .filter(w=>w.length>=2);
+  const seen = new Set(); const out=[];
+  for(const w of words.sort((a,b)=>b.length-a.length)){
+    if(!seen.has(w)){seen.add(w); out.push(w);}
+  }
+  return out;
+}
+
+function key(x,y){return x+','+y;}
+function neighbors4(x,y){return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];}
+
+/* Placement core */
+function placeWord(grid, word, placements, rng){
+  if (placements.length===0){
+    return {word, x:0, y:0, dir:'H'};
+  }
+  const candidates=[];
+  const letterIndex = new Map();
+  for (const k in grid){
+    const ch = grid[k].ch;
+    if(!letterIndex.has(ch)) letterIndex.set(ch, []);
+    const [gx,gy]=k.split(',').map(Number);
+    letterIndex.get(ch).push([gx,gy]);
+  }
+  for (let wi=0; wi<word.length; wi++){
+    const ch = word[wi];
+    const hits = letterIndex.get(ch) || [];
+    for (const [gx,gy] of hits){
+      for (const dir of ['H','V']){
+        const x = dir==='H' ? gx - wi : gx;
+        const y = dir==='V' ? gy - wi : gy;
+        if (!canPlace(grid, word, x, y, dir)) continue;
+        const overlap = countOverlap(grid, word, x, y, dir);
+        const footprint = incrementalFootprint(placements, word, x, y, dir);
+        const borderTouch = borderContacts(grid, word, x, y, dir);
+        const score = overlap*10 - footprint.areaGrowth*0.25 - Math.abs(footprint.dAspect)*2 + borderTouch*0.25;
+        candidates.push({word,x,y,dir,score, overlap});
+      }
+    }
+  }
+  if (candidates.length===0){
+    const dirs = ['H','V'];
+    for (let radius=0; radius<Math.max(8,word.length); radius++){
+      for (let tries=0; tries<20; tries++){
+        const dir = dirs[Math.floor(rng()*2)];
+        const x = Math.floor((rng()-0.5)*radius*2);
+        const y = Math.floor((rng()-0.5)*radius*2);
+        if (canPlace(grid, word, x, y, dir)){
+          const overlap = countOverlap(grid, word, x, y, dir);
+          const footprint = incrementalFootprint(placements, word, x, y, dir);
+          const score = overlap*10 - footprint.areaGrowth*0.25 - Math.abs(footprint.dAspect)*2;
+          candidates.push({word,x,y,dir,score, overlap});
+        }
+      }
+      if (candidates.length) break;
+    }
+  }
+  if (candidates.length===0) return null;
+  candidates.sort((a,b)=>b.score-a.score);
+  const topK = Math.max(1, Math.min(5, Math.floor(candidates.length*0.25)));
+  return candidates[Math.floor(rng()*topK)];
+}
+
+function canPlace(grid, word, x, y, dir){
+  for (let i=0;i<word.length;i++){
+    const cx = dir==='H' ? x+i : x;
+    const cy = dir==='V' ? y+i : y;
+    const k = key(cx,cy);
+    const cell = grid[k];
+    if (cell && cell.ch !== word[i]) return false;
+    if (!cell){
+      if (dir==='H'){
+        const up = grid[key(cx,cy-1)];
+        const dn = grid[key(cx,cy+1)];
+        if (up && !isSameLineWord(grid, cx, cy-1, cx, cy)) return false;
+        if (dn && !isSameLineWord(grid, cx, cy+1, cx, cy)) return false;
+      } else {
+        const lf = grid[key(cx-1,cy)];
+        const rt = grid[key(cx+1,cy)];
+        if (lf && !isSameLineWord(grid, cx-1, cy, cx, cy)) return false;
+        if (rt && !isSameLineWord(grid, cx+1, cy, cx, cy)) return false;
+      }
+    }
+  }
+  const pre = dir==='H' ? key(x-1,y) : key(x,y-1);
+  const post = dir==='H' ? key(x+word.length,y) : key(x,y+word.length);
+  if (grid[pre]) return false;
+  if (grid[post]) return false;
+  return true;
+}
+function isSameLineWord(grid, x1,y1,x2,y2){ return (x1===x2 && y1===y2); }
+function countOverlap(grid, word, x, y, dir){
+  let c=0;
+  for (let i=0;i<word.length;i++){
+    const cx = dir==='H' ? x+i : x;
+    const cy = dir==='V' ? y+i : y;
+    const cell = grid[key(cx,cy)];
+    if (cell && cell.ch===word[i]) c++;
+  }
   return c;
 }
-function resizeImageTo(img,w,h){
-  const c=document.createElement('canvas');
-  c.width=w; c.height=h;
-  const ctx=c.getContext('2d');
-  ctx.imageSmoothingEnabled=true;
-  ctx.imageSmoothingQuality='high';
-  ctx.drawImage(img,0,0,w,h);
+function incrementalFootprint(placements, word, x, y, dir){
+  const bb = bboxFromPlacements(placements);
+  const after = bboxFromPlacements([...placements,{word,x,y,dir}]);
+  const area0 = (bb.w||1)*(bb.h||1), area1 = after.w*after.h;
+  const areaGrowth = area1 - area0;
+  const aspect0 = bb.h? (bb.w/bb.h) : 1;
+  const aspect1 = after.w/after.h;
+  const dAspect = (Math.max(aspect1,1/aspect1)-1) - (Math.max(aspect0||1, 1/(aspect0||1))-1);
+  return {areaGrowth, dAspect};
+}
+function borderContacts(grid, word, x, y, dir){
+  let c=0;
+  for (let i=0;i<word.length;i++){
+    const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
+    for (const [nx,ny] of neighbors4(cx,cy)){ if (grid[key(nx,ny)]) c++; }
+  }
   return c;
 }
-function getImageData(canvas){return canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height)}
-function putImageData(canvas,imgData){
-  const ctx=canvas.getContext('2d');
-  canvas.width=imgData.width; canvas.height=imgData.height;
-  ctx.putImageData(imgData,0,0);
-}
-/* FNV-1a 32-bit: map string -> 32-bit seed */
-function fnv1a32(str){
-  let h=0x811c9dc5>>>0;
-  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0;}
-  return h>>>0;
-}
-/* Mulberry32 PRNG */
-function mulberry32(a){
-  let t=a>>>0;
-  return function(){
-    t|=0; t=(t+0x6D2B79F5)>>>0;
-    let r=Math.imul(t^(t>>>15),1|t);
-    r^=r+Math.imul(r^(r>>>7),61|r);
-    return ((r^(r>>>14))>>>0)/4294967296;
+function bboxFromPlacements(placements){
+  if (placements.length===0) return {minx:0,miny:0,w:0,h:0};
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  for (const p of placements){
+    const {x,y,dir,word}=p;
+    const ex = dir==='H' ? x+word.length-1 : x;
+    const ey = dir==='V' ? y+word.length-1 : y;
+    minx = Math.min(minx,x,ex); miny = Math.min(miny,y,ey);
+    maxx = Math.max(maxx,x,ex); maxy = Math.max(maxy,y,ey);
   }
+  return {minx,miny,w:maxx-minx+1,h:maxy-miny+1};
 }
-
-/* ---------- Dithering ---------- */
-function toGrayscaleLuma(imgData){
-  const d=imgData.data;
-  for(let i=0;i<d.length;i+=4){
-    const y=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]);
-    d[i]=d[i+1]=d[i+2]=y;
-  }
-  return imgData;
-}
-function floydSteinbergBW(imgData){
-  const w=imgData.width,h=imgData.height,d=imgData.data;
-  const buf=new Float32Array(w*h);
-  for(let y=0;y<h;y++) for(let x=0;x<w;x++){const i=(y*w+x)*4; buf[y*w+x]=d[i];}
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      const idx=y*w+x, oldv=buf[idx], newv=oldv<128?0:255, err=oldv-newv; buf[idx]=newv;
-      const add=(xx,yy,f)=>{const nx=x+xx,ny=y+yy; if(nx>=0&&nx<w&&ny>=0&&ny<h){buf[ny*w+nx]=Math.max(0,Math.min(255,buf[ny*w+nx]+err*f));}}
-      add(1,0,7/16); add(-1,1,3/16); add(0,1,5/16); add(1,1,1/16);
+function buildGrid(placements){
+  const grid={};
+  for (const {word,x,y,dir} of placements){
+    for (let i=0;i<word.length;i++){
+      const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
+      const k = key(cx,cy);
+      if (!grid[k]) grid[k] = {ch:word[i], count:0};
+      if (grid[k].ch===word[i]) grid[k].count++;
     }
   }
-  for(let y=0;y<h;y++) for(let x=0;x<w;x++){const i=(y*w+x)*4, v=buf[y*w+x]<128?0:255; d[i]=d[i+1]=d[i+2]=v;}
-  return imgData;
+  return grid;
 }
 
-// --- NEW HELPERS: near-BW detection, threshold, and canvas ops ---
-function isNearBW(imgData, tol = 8) {
-  const d = imgData.data;
-  let countNear = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    const v = (d[i] + d[i+1] + d[i+2]) / 3;
-    if (v < tol || v > 255 - tol) countNear++;
-  }
-  const ratio = countNear / (d.length / 4);
-  const isBW = ratio > 0.98; // ≥98% of pixels are already near black/white
-  const isGray = ratio > 0.8; // grayscale dominance
-  return { isBW, isGray };
+/* Scoring */
+function layoutScore(placements){
+  const bb = bboxFromPlacements(placements);
+  const grid = buildGrid(placements);
+  const usedCells = Object.keys(grid).length;
+  const letters = placements.reduce((s,p)=>s+p.word.length,0);
+  const crossings = Object.values(grid).filter(c=>c.count>1).length;
+  const area = bb.w*bb.h;
+  const fillBBox = letters / Math.max(area,1);
+  const aspect = bb.w && bb.h ? (bb.w/bb.h) : 1;
+  const aspectPenalty = Math.max(aspect,1/aspect)-1;
+  const holes = countHoles(grid);
+  const score =
+    area*0.7 +
+    aspectPenalty*400 +
+    (1-fillBBox)*800 +
+    holes*30 -
+    crossings*8;
+  return {score, meta:{bb,usedCells,letters,crossings,fillBBox,holes}};
 }
-
-function thresholdBW(imgData, th = 128) {
-  const d = imgData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const v = d[i] < th ? 0 : 255;
-    d[i] = d[i+1] = d[i+2] = v;
-  }
-  return imgData;
-}
-
-function canvasFromImage(img) {
-  const c = document.createElement('canvas');
-  c.width = img.naturalWidth || img.width;
-  c.height = img.naturalHeight || img.height;
-  c.getContext('2d').drawImage(img, 0, 0);
-  return c;
-}
-
-function resizeCanvas(srcCanvas, w, h, smoothing = true) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = smoothing;
-  if (smoothing) ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(srcCanvas, 0, 0, w, h);
-  return c;
-}
-/* ---------- Seed header in top-left 8x8 (RED LSB) ---------- */
-function writeSeedLSB(imgData, seedU32){
-  const w=imgData.width,h=imgData.height;
-  if(w<8||h<8) throw new Error("Image too small to embed seed.");
-  const header=[0x53,0x47,0x31]; // "SG1"
-  const bits=[];
-  for(const byte of header) for(let b=7;b>=0;b--) bits.push((byte>>b)&1);
-  for(let b=31;b>=0;b--) bits.push((seedU32>>>b)&1); // 56 bits total
-  const d=imgData.data;
-  for(let i=0;i<bits.length;i++){
-    const x=i%8, y=(i/8)|0, px=(y*w+x)*4;
-    let r=d[px], want=bits[i];
-    if((r&1)!==want) r=(r===255)?254:(r+1);
-    d[px]=r;
-  }
-  return imgData;
-}
-function readSeedLSB(imgData){
-  const w=imgData.width,h=imgData.height;
-  if(w<8||h<8) return {ok:false,seed:null};
-  const d=imgData.data;
-  const readBits=(count,start)=>{
-    let out=0;
-    for(let i=0;i<count;i++){
-      const idx=start+i, x=idx%8, y=(idx/8)|0, px=(y*w+x)*4, bit=d[px]&1;
-      out=(out<<1)|bit;
-    }
-    return out>>>0;
-  };
-  const SG1=(0x53<<16)|(0x47<<8)|0x31;
-  const header=readBits(24,0);
-  if(header!==SG1) return {ok:false,seed:null};
-  const seed=readBits(32,24)>>>0;
-  return {ok:true,seed};
-}
-
-/* ---------- Encoding / Decoding ---------- */
-function isReservedPixel(x,y){return (x<8 && y<8);}
-
-function encodeLSB(stegoImgData, bwHiddenImgData, seedU32, embedSeed){
-  const w=stegoImgData.width,h=stegoImgData.height;
-  if(bwHiddenImgData.width!==w||bwHiddenImgData.height!==h) throw new Error("Hidden image must match cover image dimensions.");
-  if(embedSeed) writeSeedLSB(stegoImgData, seedU32);
-  const rng=mulberry32(seedU32), S=stegoImgData.data, H=bwHiddenImgData.data;
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      if(embedSeed && isReservedPixel(x,y)) continue; // skip header area only if writing one
-      const i=(y*w+x)*4, hiddenWhite=H[i]>127;
-      const chan=Math.floor(rng()*3), idx=i+chan;
-      const whiteParity=(rng()<0.5)?0:1;
-      const desired=hiddenWhite?whiteParity:(1-whiteParity);
-      let v=S[idx]; if((v&1)!==desired) v=(v===255)?254:(v+1); S[idx]=v;
+function countHoles(grid){
+  const coords = Object.keys(grid).map(s=>s.split(',').map(Number));
+  if (!coords.length) return 0;
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  for (const [x,y] of coords){minx=Math.min(minx,x);miny=Math.min(miny,y);maxx=Math.max(maxx,x);maxy=Math.max(maxy,y);}
+  let holes=0;
+  for (let y=miny;y<=maxy;y++){
+    for (let x=minx;x<=maxx;x++){
+      const k = key(x,y);
+      if (grid[k]) continue;
+      const nb = neighbors4(x,y).filter(([nx,ny])=>grid[key(nx,ny)]);
+      if (nb.length===4) holes++;
     }
   }
-  return stegoImgData;
+  return holes;
 }
 
-function decodeLSB(stegoImgData, seedOverride){
-  const w=stegoImgData.width,h=stegoImgData.height;
-  let seed=null, usedMode="auto";
-  if(seedOverride!=null){
-    seed=seedOverride>>>0; usedMode="manual";
-  }else{
-    const res=readSeedLSB(stegoImgData);
-    if(!res.ok) throw new Error("No embedded seed found. Switch to Manual seed and enter the passcode used at encode time.");
-    seed=res.seed>>>0;
-  }
-  const rng=mulberry32(seed), S=stegoImgData.data, out=new ImageData(w,h), D=out.data;
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      const i=(y*w+x)*4;
-      // If we used auto mode (header present), reserved area is black for clarity; in manual mode we don't skip any pixels.
-      if(usedMode==="auto" && isReservedPixel(x,y)){D[i]=D[i+1]=D[i+2]=0; D[i+3]=255; continue;}
-      const chan=Math.floor(rng()*3), idx=i+chan;
-      const whiteParity=(rng()<0.5)?0:1;
-      const parity=S[idx]&1, isWhite=(parity===whiteParity), v=isWhite?255:0;
-      D[i]=D[i+1]=D[i+2]=v; D[i+3]=255;
+/* Local improvement */
+function validatePlacements(placements){
+  const grid={};
+  for (const {word,x,y,dir} of placements){
+    const pre = dir==='H' ? key(x-1,y) : key(x,y-1);
+    const post = dir==='H' ? key(x+word.length,y) : key(x,y+word.length);
+    if (grid[pre] || grid[post]) return false;
+    for (let i=0;i<word.length;i++){
+      const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
+      const k = key(cx,cy); const cell = grid[k];
+      if (cell && cell.ch!==word[i]) return false;
+      if (!cell){
+        if (dir==='H'){
+          if (grid[key(cx,cy-1)] || grid[key(cx,cy+1)]) return false;
+        } else {
+          if (grid[key(cx-1,cy)] || grid[key(cx+1,cy)]) return false;
+        }
+      }
+      grid[k] = {ch:word[i]};
     }
   }
-  return {imageData:out, seed, mode:usedMode};
+  return true;
 }
-
-/* ---------- UI ---------- */
-const els={
-  tabs:document.querySelectorAll('.tabbtn'),
-  enc:document.getElementById('encode'),
-  dec:document.getElementById('decode'),
-
-  coverFile:document.getElementById('coverFile'),
-  hiddenFile:document.getElementById('hiddenFile'),
-  seedInput:document.getElementById('seedInput'),
-  btnRandSeed:document.getElementById('btnRandSeed'),
-  chkEmbedSeed:document.getElementById('chkEmbedSeed'),
-  noEmbedNote:document.getElementById('noEmbedNote'),
-
-  btnPrep:document.getElementById('btnPrep'),
-  btnEncode:document.getElementById('btnEncode'),
-  btnDownload:document.getElementById('btnDownload'),
-
-  hiddenDitherCanvas:document.getElementById('hiddenDitherCanvas'),
-  stegoCanvas:document.getElementById('stegoCanvas'),
-
-  stegoInFile:document.getElementById('stegoInFile'),
-  stegoInCanvas:document.getElementById('stegoInCanvas'),
-  btnDecode:document.getElementById('btnDecode'),
-  decodedCanvas:document.getElementById('decodedCanvas'),
-  recoveredSeed:document.getElementById('recoveredSeed'),
-
-  decModeAuto:document.querySelector('input[name="decmode"][value="auto"]'),
-  decModeManual:document.querySelector('input[name="decmode"][value="manual"]'),
-  manualSeed:document.getElementById('manualSeed'),
-};
-
-let coverImg=null, hiddenImg=null;
-let preparedHiddenBW=null;
-let stegoImageData=null;
-
-// Tabs
-els.tabs.forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    els.tabs.forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const which=btn.dataset.tab;
-    els.enc.style.display=(which==='encode')?'':'none';
-    els.dec.style.display=(which==='decode')?'':'none';
-  });
-});
-
-// File loads
-els.coverFile.addEventListener('change', async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  coverImg=await loadImageFile(f);
-  preparedHiddenBW=null; stegoImageData=null;
-  els.btnEncode.disabled=true; els.btnDownload.disabled=true;
-  drawCanvas(els.stegoCanvas, makeCanvasLike(coverImg));
-});
-els.hiddenFile.addEventListener('change', async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  hiddenImg=await loadImageFile(f);
-  preparedHiddenBW=null; stegoImageData=null;
-  els.btnEncode.disabled=true; els.btnDownload.disabled=true;
-  drawCanvas(els.hiddenDitherCanvas, makeCanvasLike(hiddenImg));
-});
-
-// Seed helpers
-els.btnRandSeed.addEventListener('click',()=>{
-  const r=(crypto.getRandomValues(new Uint32Array(1))[0])>>>0;
-  els.seedInput.value=String(r);
-});
-
-els.chkEmbedSeed.addEventListener('change',()=>{
-  if(!els.chkEmbedSeed.checked){
-    els.noEmbedNote.innerHTML=' <span class="warn">Seed will NOT be embedded. You must remember and share the seed/passcode for decoding.</span>';
-  }else{
-    els.noEmbedNote.textContent='';
-  }
-});
-
-function drawCanvas(canvas,srcC){
-  canvas.width=srcC.width; canvas.height=srcC.height;
-  canvas.getContext('2d').drawImage(srcC,0,0);
-}
-
-// Prepare (grayscale + dither)
-els.btnPrep.addEventListener('click', () => {
-  if (!coverImg || !hiddenImg) { alert("Please upload both cover and hidden images."); return; }
-
-  // Target = cover size
-  const coverC = makeCanvasLike(coverImg);
-
-  // 1) Start from hidden image at native size
-  const hiddenNative = canvasFromImage(hiddenImg);
-
-  // 2) Convert to grayscale FIRST (native size)
-  let grayNative = getImageData(hiddenNative);
-  grayNative = toGrayscaleLuma(grayNative);
-  putImageData(hiddenNative, grayNative);
-
-  // If source already looks near-binary, preserve hard edges by disabling smoothing
-  const { isBW: lookedBW } = isNearBW(grayNative, 8);
-
-  // 3) Resize the grayscale canvas to match cover
-  const hiddenResizedGray = resizeCanvas(
-    hiddenNative,
-    coverC.width,
-    coverC.height,
-    /* smoothing */ !lookedBW
-  );
-
-  // 4) Decide BW vs Dither on the resized grayscale
-  let hidData = getImageData(hiddenResizedGray);
-  const { isBW: isBWAfterResize, isGray: isGrayAfterResize } = isNearBW(hidData, 8);
-
-  if (isBWAfterResize) {
-    // Already binary after resize: hard threshold, no dithering
-    hidData = thresholdBW(hidData, 128);
-  } else {
-    // Mixed tones: (safety) ensure grayscale, then Floyd-Steinberg dither
-    if (!isGrayAfterResize) hidData = toGrayscaleLuma(hidData);
-    hidData = floydSteinbergBW(hidData);
-  }
-
-  // 5) Preview + store
-  preparedHiddenBW = hidData;
-  const c = document.createElement('canvas');
-  putImageData(c, hidData);
-  drawCanvas(els.hiddenDitherCanvas, c);
-
-  els.btnEncode.disabled = false;
-});
-
-// Encode
-els.btnEncode.addEventListener('click',()=>{
-  if(!preparedHiddenBW){alert("Prepare the hidden image first."); return;}
-
-  // Seed handling (number or string)
-  let seedStr=els.seedInput.value.trim();
-  let seedU32;
-  if(seedStr.length===0){
-    seedU32=(crypto.getRandomValues(new Uint32Array(1))[0])>>>0;
-    els.seedInput.value=String(seedU32);
-    if(!els.chkEmbedSeed.checked){
-      alert("No seed entered and embedding is off. A random seed was generated—save or share it to enable decoding.");
+function localImprove(placements){
+  let best = placements.map(p=>({...p}));
+  let {score:bestScore} = layoutScore(best);
+  const rngFn = () => rand(randSeed);
+  for (let iter=0; iter<200; iter++){
+    const idx = Math.floor(Math.random()*best.length);
+    const variant = best.map(p=>({...p}));
+    const target = variant[idx];
+    const original = {...target};
+    const tries = [
+      {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+      {flip:true}
+    ];
+    shuffle(tries, rngFn);
+    let improved=false;
+    for (const t of tries){
+      Object.assign(target, original);
+      if (t.flip) target.dir = target.dir==='H'?'V':'H';
+      else {target.x+=t.dx; target.y+=t.dy;}
+      if (!validatePlacements(variant)) continue;
+      const {score} = layoutScore(variant);
+      if (score < bestScore){
+        bestScore = score;
+        best = variant.map(p=>({...p}));
+        improved=true;
+        break;
+      }
     }
-  }else{
-    if(/^\d+$/.test(seedStr)) seedU32=(parseInt(seedStr,10)>>>0);
-    else seedU32=fnv1a32(seedStr);
   }
+  return best;
+}
 
-  const coverC=makeCanvasLike(coverImg);
-  const stegoData=getImageData(coverC);
+/* Driver */
+function generateCrossword(words, restarts=200, seed=0){
+  randSeed.value = seed|0;
+  const rng = ()=>rand(randSeed);
+  const baseOrder = [...words].sort((a,b)=>b.length-a.length);
 
-  try{
-    const out=encodeLSB(stegoData, preparedHiddenBW, seedU32, els.chkEmbedSeed.checked);
-    const outCanvas=document.createElement('canvas');
-    putImageData(outCanvas,out);
-    drawCanvas(els.stegoCanvas,outCanvas);
-    stegoImageData=out;
-    els.btnDownload.disabled=false;
-  }catch(e){alert(e.message);}
-});
+  let best = null, bestScore = Infinity, bestMeta=null;
 
-// Download
-els.btnDownload.addEventListener('click',()=>{
-  if(!stegoImageData) return;
-  const c=document.createElement('canvas');
-  putImageData(c,stegoImageData);
-  c.toBlob(blob=>{
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='ghostmark.png';
-    a.click();
-  },'image/png');
-});
+  outer: for (let r=0;r<restarts;r++){
+    const order = [...baseOrder];
+    for (let i=0;i<order.length;i++){
+      const j = Math.max(0, Math.min(order.length-1, i + Math.floor((rng()-0.5)*3)));
+      [order[i],order[j]]=[order[j],order[i]];
+    }
+    const placements=[];
+    let grid={};
+    for (let w of order){
+      const p = placeWord(grid, w, placements, rng);
+      if (!p){ continue; }
+      placements.push(p);
+      grid = buildGrid(placements);
+    }
+    if (placements.length===0) continue;
 
-/* ----- Decode flow ----- */
-let stegoInImage=null;
-els.stegoInFile.addEventListener('change', async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  stegoInImage=await loadImageFile(f);
-  drawCanvas(els.stegoInCanvas, makeCanvasLike(stegoInImage));
-  els.btnDecode.disabled=false;
-  els.recoveredSeed.textContent='-';
-  const ctx=els.decodedCanvas.getContext('2d'); ctx.clearRect(0,0,els.decodedCanvas.width,els.decodedCanvas.height);
-});
-
-// Decode mode toggle
-[els.decModeAuto, els.decModeManual].forEach(r=>{
-  r.addEventListener('change',()=>{
-    const manual=els.decModeManual.checked;
-    els.manualSeed.disabled=!manual;
-  });
-});
-
-els.btnDecode.addEventListener('click',()=>{
-  if(!stegoInImage) return;
-  const c=makeCanvasLike(stegoInImage);
-  const data=getImageData(c);
-
-  let seedOverride=null;
-  if(els.decModeManual.checked){
-    const s=els.manualSeed.value.trim();
-    if(!s){ alert("Enter a manual seed/passcode."); return; }
-    seedOverride = (/^\d+$/.test(s)) ? (parseInt(s,10)>>>0) : fnv1a32(s);
+    let improved = localImprove(placements);
+    const {score, meta} = layoutScore(improved);
+    if (score < bestScore){ bestScore = score; best = improved; bestMeta = meta; }
+    if (bestMeta && bestMeta.fillBBox>0.70 &&
+        (Math.max(bestMeta.bb.w/bestMeta.bb.h, bestMeta.bb.h/bestMeta.bb.w) < 1.15)){
+      break outer;
+    }
   }
+  return {placements:best||[], meta:bestMeta||{bb:{w:0,h:0},letters:0,crossings:0,fillBBox:0,usedCells:0}};
+}
 
-  try{
-    const {imageData, seed, mode}=decodeLSB(data, seedOverride);
-    const outC=document.createElement('canvas');
-    putImageData(outC,imageData);
-    drawCanvas(els.decodedCanvas,outC);
-    els.recoveredSeed.textContent = (mode==="manual" ? ("manual " + (seed>>>0)) : ("auto " + (seed>>>0)));
-  }catch(e){ alert(e.message); }
+/* Render */
+function normalizePlacements(placements){
+  const bb = bboxFromPlacements(placements);
+  const dx = -bb.minx, dy=-bb.miny;
+  return placements.map(p=>({...p,x:p.x+dx,y:p.y+dy}));
+}
+function render(layout, showSolution=true){
+  ctx.clearRect(0,0,board.width,board.height);
+  if (!layout || layout.placements.length===0){
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,board.width,board.height);
+    ctx.fillStyle='#888';
+    ctx.font='16px system-ui, sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('Your crossword will appear here.', board.width/2, board.height/2);
+    return;
+  }
+  const placements = normalizePlacements(layout.placements);
+  const grid = buildGrid(placements);
+  const bb = bboxFromPlacements(placements);
+
+  const pad = 40;
+  const cols = bb.w, rows = bb.h;
+  const cell = Math.floor(Math.min((board.width-2*pad)/cols, (board.height-2*pad)/rows));
+  const ox = Math.floor((board.width - cell*cols)/2);
+  const oy = Math.floor((board.height - cell*rows)/2);
+
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,board.width,board.height);
+
+  ctx.lineWidth=1;
+  ctx.strokeStyle='#111';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font = Math.floor(cell*0.55) + 'px ui-monospace, Menlo, Consolas, monospace';
+
+  for (let y=0;y<rows;y++){
+    for (let x=0;x<cols;x++){
+      const k = key(x,y);
+      if (grid[k]){
+        ctx.fillStyle='#ffffff';
+        ctx.fillRect(ox+x*cell, oy+y*cell, cell, cell);
+        ctx.strokeStyle='#000000';
+        ctx.strokeRect(ox+x*cell+0.5, oy+y*cell+0.5, cell-1, cell-1);
+        if (showSolution){
+          ctx.fillStyle='#111';
+          ctx.fillText(grid[k].ch, ox+x*cell + cell/2, oy+y*cell + cell/2 + 0.5);
+        }
+      } else {
+        ctx.fillStyle='#000000';
+        ctx.fillRect(ox+x*cell, oy+y*cell, cell, cell);
+      }
+    }
+  }
+  ctx.strokeStyle='#2b2b2b';
+  ctx.lineWidth=2;
+  ctx.strokeRect(ox-1, oy-1, cell*cols+2, cell*rows+2);
+}
+function updateStats(layout){
+  if (!layout || layout.placements.length===0){
+    statsEl.textContent = 'No layout.';
+    sizeStatsEl.textContent = '';
+    return;
+  }
+  const m = layout.meta;
+  const ratio = m.bb.w && m.bb.h ? (m.bb.w/m.bb.h) : 1;
+  statsEl.textContent =
+    'Letters: ' + m.letters +
+    ' | Crossings: ' + m.crossings +
+    ' | Fill-in-BBox: ' + (m.fillBBox*100).toFixed(1) + '%';
+  sizeStatsEl.textContent =
+    'Grid: ' + m.bb.w + 'x' + m.bb.h +
+    ' (aspect ' + (Math.max(ratio,1/ratio)).toFixed(3) + ' from square)';
+}
+
+/* UI */
+generateBtn.addEventListener('click', ()=>{
+  const list = parseWords(inputEl.value);
+  if (list.length<2){
+    alert('Please provide at least two valid words (letters/numbers/hyphen).');
+    return;
+  }
+  const restarts = Math.max(1, Math.min(5000, parseInt(restartsEl.value||200,10)));
+  const seed = parseInt(seedEl.value||0,10);
+  const t0 = performance.now();
+  const layout = generateCrossword(list, restarts, seed);
+  const t1 = performance.now();
+
+  currentLayout = layout;
+  updateStats(layout);
+  currentShowSolution = showSolutionEl.checked;
+  render(layout, currentShowSolution);
+  const ms = Math.max(1, Math.round(t1-t0));
+  statsEl.textContent += ' | Built in ' + ms + ' ms' +
+    ' | Words placed: ' + layout.placements.length + '/' + list.length;
 });
+
+showSolutionEl.addEventListener('change', (e)=>{
+  currentShowSolution = !!e.target.checked;
+  render(currentLayout, currentShowSolution);
+});
+
+saveBtn.addEventListener('click', ()=>{
+  if (!currentLayout || currentLayout.placements.length===0){
+    alert('Nothing to save yet - generate a crossword first.');
+    return;
+  }
+  const url = board.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wordloom-crossword.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
+
+/* Initial render & demo content */
+render(null, true);
+inputEl.value = 'INFORMATION\nTHEORY\nALGORITHM\nPUZZLE\nGRID\nLETTER\nTOKEN\nSQUARE\nCROSS\nWORD\nSEARCH\nSTATE\nHEURISTIC\nCOMPACT\nRANDOM\nRESTARTS\nSEED';
 </script>
 </body>
 </html>
