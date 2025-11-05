@@ -5,7 +5,7 @@
 **WordLoom** is a lightweight, browser-based crossword generator built for rapid puzzle prototyping.  
 Paste a word list, adjust parameters, and watch it weave a compact, near-square grid using multi-start heuristics and local hill-climbing — all in real time and entirely offline.
 
-[**View Live Demo**](nqrlabs.com/WordLoom/)
+[**View Live Demo**](https://nqrlabs.com/WordLoom/)
 
 ## Overview
 
