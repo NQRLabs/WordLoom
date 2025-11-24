@@ -187,18 +187,29 @@ canvas{ width:100%; height:100%; display:block; background:#fff; }
 
 /* FOOTER / LICENSE (from template) */
 .license-footer {
-  margin-top: 30px;
-  margin-bottom: 20px;
+  width: auto;
+  border-top: 2px solid #b9c6ef33;
+  margin-top: 10px;
+  margin-bottom: 0px;
+  margin-left: 20px;
+  margin-right: 20px;
   padding: 10px 8px;
   font-size: 0.68rem;
-  color: var(--dim);
+  color: var(--gg-ink-dim);
   opacity: 0.7;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
   text-align: center;
 }
 
-.license-footer:hover {
+.license-footer a {
+  color: var(--dim);
+  cursor: pointer;
+  text-decoration: none; 
+  transition: opacity 0.3s ease;
+}
+.license-footer a:hover {
+  color: #17b399;
+  cursor: pointer;
+  text-decoration: underline; 
   opacity: 1;
 }
 
@@ -207,6 +218,7 @@ canvas{ width:100%; height:100%; display:block; background:#fff; }
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
   z-index: 999;
 }
 
@@ -226,6 +238,7 @@ canvas{ width:100%; height:100%; display:block; background:#fff; }
   overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0,0,0,.6);
   z-index: 1000;
+  text-align: left;
 }
 
 .license-modal.show,
@@ -320,6 +333,16 @@ WORD"></textarea>
       <div class="footer">
         Made for rapid puzzle prototyping. No data leaves your browser.
       </div>
+      <!-- FOOTER / LICENSE (from template) -->
+      <div class="license-footer">
+        <a href="https://youtube.com/@CLU-NQR" target="_blank">YouTube</a> &middot;
+        <a href="https://discord.gg/HT9YE8rvuN" target="_blank">Discord</a> &middot;
+        <a href="https://nqrlabs.com" target="_blank">NQR Labs</a> &middot;
+        <a href="https://github.com/NQRLabs" target="_blank">GitHub</a>
+        <br>
+        &copy; 2025 NQR &middot; <a id="licenseLink">License</a>
+      </div>
+
     </aside>
 
     <section class="stage gg-card">
@@ -334,21 +357,16 @@ WORD"></textarea>
   </div>
 </main>
 
-<!-- FOOTER / LICENSE (from template) -->
-<footer class="license-footer" id="licenseLink">
-  MIT License • Developed by NQR • Click to view
-</footer>
-
 <div class="license-overlay" id="licenseOverlay"></div>
 <div class="license-modal" id="licenseModal" role="dialog" aria-modal="true" aria-labelledby="licenseTitle">
   <div class="license-modal-header">
-    <h3 class="license-modal-title" id="licenseTitle">MIT License</h3>
+    <h3 class="license-modal-title" id="licenseTitle">WordLoom License</h3>
     <span class="license-modal-close" id="licenseClose" aria-label="Close license dialog">&times;</span>
   </div>
-  <pre class="small-muted" style="text-align:center; white-space:pre-wrap; margin-top:14px;">
-MIT License
+  <pre class="small-muted" style="white-space:pre-wrap; margin-top:14px;">
+WordLoom - MIT License
 
-Copyright (c) 2025 NQR
+Copyright &copy; 2025 NQR
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
