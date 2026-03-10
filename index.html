@@ -565,35 +565,39 @@ function countHoles(grid, bb){
 }
 
 /* Local improvement */
-const _scratchGrid = new Uint8Array(GRID_STRIDE*GRID_STRIDE);
-function validatePlacements(placements){
-  const touched=[];
-  let valid=true;
-  outer:
-  for (const {word,x,y,dir} of placements){
-    if (_scratchGrid[dir==='H' ? gridIdx(x-1,y) : gridIdx(x,y-1)] ||
-        _scratchGrid[dir==='H' ? gridIdx(x+word.length,y) : gridIdx(x,y+word.length)]){
-      valid=false; break;
+const _bgGrid = new Uint8Array(GRID_STRIDE*GRID_STRIDE);
+const _bgTouched = [];
+function buildBackgroundGrid(placements, skipIdx){
+  for (const i of _bgTouched) _bgGrid[i]=0;
+  _bgTouched.length=0;
+  for (let i=0;i<placements.length;i++){
+    if (i===skipIdx) continue;
+    const {word,x,y,dir}=placements[i];
+    for (let j=0;j<word.length;j++){
+      const cx=dir==='H'?x+j:x; const cy=dir==='V'?y+j:y;
+      const idx=gridIdx(cx,cy);
+      if (!_bgGrid[idx]) _bgTouched.push(idx);
+      _bgGrid[idx]=word.charCodeAt(j);
     }
-    for (let i=0;i<word.length;i++){
-      const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
-      const idx = gridIdx(cx,cy);
-      const cell = _scratchGrid[idx];
-      const ch = word.charCodeAt(i);
-      if (cell && cell!==ch){ valid=false; break outer; }
-      if (!cell){
-        if (dir==='H'){
-          if (_scratchGrid[gridIdx(cx,cy-1)]||_scratchGrid[gridIdx(cx,cy+1)]){ valid=false; break outer; }
-        } else {
-          if (_scratchGrid[gridIdx(cx-1,cy)]||_scratchGrid[gridIdx(cx+1,cy)]){ valid=false; break outer; }
-        }
-        touched.push(idx);
-        _scratchGrid[idx] = ch;
+  }
+}
+function checkWordAgainstGrid(word, x, y, dir){
+  if (dir==='H' ? _bgGrid[gridIdx(x-1,y)]||_bgGrid[gridIdx(x+word.length,y)]
+                : _bgGrid[gridIdx(x,y-1)]||_bgGrid[gridIdx(x,y+word.length)]) return false;
+  for (let i=0;i<word.length;i++){
+    const cx=dir==='H'?x+i:x; const cy=dir==='V'?y+i:y;
+    const cell=_bgGrid[gridIdx(cx,cy)];
+    if (cell){
+      if (cell!==word.charCodeAt(i)) return false;
+    } else {
+      if (dir==='H'){
+        if (_bgGrid[gridIdx(cx,cy-1)]||_bgGrid[gridIdx(cx,cy+1)]) return false;
+      } else {
+        if (_bgGrid[gridIdx(cx-1,cy)]||_bgGrid[gridIdx(cx+1,cy)]) return false;
       }
     }
   }
-  for (const idx of touched) _scratchGrid[idx]=0;
-  return valid;
+  return true;
 }
 function localImprove(placements){
   let best = placements.map(p=>({...p}));
@@ -601,25 +605,23 @@ function localImprove(placements){
   const rngFn = () => rand(randSeed);
   for (let iter=0; iter<200; iter++){
     const idx = Math.floor(Math.random()*best.length);
-    const variant = best.map(p=>({...p}));
-    const target = variant[idx];
-    const original = {...target};
+    buildBackgroundGrid(best, idx);
+    const {word, x:ox, y:oy, dir:odir} = best[idx];
     const tries = [
       {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
       {flip:true}
     ];
     shuffle(tries, rngFn);
-    let improved=false;
     for (const t of tries){
-      Object.assign(target, original);
-      if (t.flip) target.dir = target.dir==='H'?'V':'H';
-      else {target.x+=t.dx; target.y+=t.dy;}
-      if (!validatePlacements(variant)) continue;
+      const x = ox+(t.dx||0);
+      const y = oy+(t.dy||0);
+      const dir = t.flip ? (odir==='H'?'V':'H') : odir;
+      if (!checkWordAgainstGrid(word, x, y, dir)) continue;
+      const variant = best.map((p,i)=>i===idx?{word,x,y,dir}:{...p});
       const {score} = layoutScore(variant);
       if (score < bestScore){
         bestScore = score;
-        best = variant.map(p=>({...p}));
-        improved=true;
+        best = variant;
         break;
       }
     }
