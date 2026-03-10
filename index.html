@@ -457,22 +457,17 @@ function parseWords(raw){
   return out;
 }
 
-function key(x,y){return x+','+y;}
-function neighbors4(x,y){return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];}
+/* Flat-array grid helpers */
+const GRID_ORIGIN = 128;
+const GRID_STRIDE = 256;
+function gridIdx(x,y){ return (y+GRID_ORIGIN)*GRID_STRIDE+(x+GRID_ORIGIN); }
 
 /* Placement core */
-function placeWord(grid, word, placements, rng){
-  if (placements.length===0){
+function placeWord(grid, letterIndex, word, rng){
+  if (!letterIndex.size){
     return {word, x:0, y:0, dir:'H'};
   }
   const candidates=[];
-  const letterIndex = new Map();
-  for (const k in grid){
-    const ch = grid[k].ch;
-    if(!letterIndex.has(ch)) letterIndex.set(ch, []);
-    const [gx,gy]=k.split(',').map(Number);
-    letterIndex.get(ch).push([gx,gy]);
-  }
   for (let wi=0; wi<word.length; wi++){
     const ch = word[wi];
     const hits = letterIndex.get(ch) || [];
@@ -480,22 +475,20 @@ function placeWord(grid, word, placements, rng){
       for (const dir of ['H','V']){
         const x = dir==='H' ? gx-wi : gx;
         const y = dir==='V' ? gy-wi : gy;
-        const pre = dir==='H' ? key(x-1,y) : key(x,y-1);
-        const post = dir==='H' ? key(x+word.length,y) : key(x,y+word.length);
-        if (grid[pre] || grid[post]) continue;
+        if (dir==='H' ? grid[gridIdx(x-1,y)] || grid[gridIdx(x+word.length,y)]
+                      : grid[gridIdx(x,y-1)] || grid[gridIdx(x,y+word.length)]) continue;
         let ok=true;
         for(let i=0;i<word.length;i++){
           const cx = dir==='H' ? x+i : x;
           const cy = dir==='V' ? y+i : y;
-          const k = key(cx,cy);
-          const cell = grid[k];
+          const cell = grid[gridIdx(cx,cy)];
           if (cell){
-            if (cell.ch!==word[i]){ok=false; break;}
+            if (cell !== word.charCodeAt(i)){ok=false; break;}
           } else {
             if (dir==='H'){
-              if (grid[key(cx,cy-1)]||grid[key(cx,cy+1)]){ok=false;break;}
+              if (grid[gridIdx(cx,cy-1)]||grid[gridIdx(cx,cy+1)]){ok=false;break;}
             } else {
-              if (grid[key(cx-1,cy)]||grid[key(cx+1,cy)]){ok=false;break;}
+              if (grid[gridIdx(cx-1,cy)]||grid[gridIdx(cx+1,cy)]){ok=false;break;}
             }
           }
         }
@@ -507,12 +500,12 @@ function placeWord(grid, word, placements, rng){
   return candidates[Math.floor(rng()*candidates.length)];
 }
 function buildGrid(placements){
-  const g={};
+  const g = new Uint8Array(GRID_STRIDE*GRID_STRIDE);
   for (const {word,x,y,dir} of placements){
     for (let i=0;i<word.length;i++){
       const cx = dir==='H' ? x+i : x;
       const cy = dir==='V' ? y+i : y;
-      g[key(cx,cy)] = {ch:word[i]};
+      g[gridIdx(cx,cy)] = word.charCodeAt(i);
     }
   }
   return g;
@@ -534,23 +527,23 @@ function layoutScore(placements){
   if (!placements.length) return {score:1e9,meta:{bb:{w:0,h:0},letters:0,crossings:0,fillBBox:0}};
   const bb = bboxFromPlacements(placements);
   const grid = buildGrid(placements);
-  let letters=0,crossings=0,usedCells=0;
-  for (const k in grid){
-    letters++; usedCells++;
-  }
+  let totalSlots=0, crossings=0;
   const visited = new Set();
   for (const {word,x,y,dir} of placements){
+    totalSlots += word.length;
     for (let i=0;i<word.length;i++){
       const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
-      const k = key(cx,cy);
-      if (visited.has(k)) crossings++; else visited.add(k);
+      const idx = gridIdx(cx,cy);
+      if (visited.has(idx)) crossings++; else visited.add(idx);
     }
   }
+  const usedCells = totalSlots - crossings;
+  const letters = usedCells;
   const area = bb.w*bb.h;
   const fillBBox = usedCells/area;
   const ratio = Math.max(bb.w/bb.h, bb.h/bb.w);
   const aspectPenalty = Math.pow(ratio-1, 2);
-  const holes = countHoles(grid);
+  const holes = countHoles(grid, bb);
   const score =
     area*0.7 +
     aspectPenalty*400 +
@@ -559,45 +552,48 @@ function layoutScore(placements){
     crossings*8;
   return {score, meta:{bb,usedCells,letters,crossings,fillBBox,holes}};
 }
-function countHoles(grid){
-  const coords = Object.keys(grid).map(s=>s.split(',').map(Number));
-  if (!coords.length) return 0;
-  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
-  for (const [x,y] of coords){minx=Math.min(minx,x);miny=Math.min(miny,y);maxx=Math.max(maxx,x);maxy=Math.max(maxy,y);}
+function countHoles(grid, bb){
   let holes=0;
-  for (let y=miny;y<=maxy;y++){
-    for (let x=minx;x<=maxx;x++){
-      const k = key(x,y);
-      if (grid[k]) continue;
-      const nb = neighbors4(x,y).filter(([nx,ny])=>grid[key(nx,ny)]);
-      if (nb.length===4) holes++;
+  for (let y=bb.miny;y<=bb.maxy;y++){
+    for (let x=bb.minx;x<=bb.maxx;x++){
+      if (grid[gridIdx(x,y)]) continue;
+      if (grid[gridIdx(x+1,y)] && grid[gridIdx(x-1,y)] &&
+          grid[gridIdx(x,y+1)] && grid[gridIdx(x,y-1)]) holes++;
     }
   }
   return holes;
 }
 
 /* Local improvement */
+const _scratchGrid = new Uint8Array(GRID_STRIDE*GRID_STRIDE);
 function validatePlacements(placements){
-  const grid={};
+  const touched=[];
+  let valid=true;
+  outer:
   for (const {word,x,y,dir} of placements){
-    const pre = dir==='H' ? key(x-1,y) : key(x,y-1);
-    const post = dir==='H' ? key(x+word.length,y) : key(x,y+word.length);
-    if (grid[pre] || grid[post]) return false;
+    if (_scratchGrid[dir==='H' ? gridIdx(x-1,y) : gridIdx(x,y-1)] ||
+        _scratchGrid[dir==='H' ? gridIdx(x+word.length,y) : gridIdx(x,y+word.length)]){
+      valid=false; break;
+    }
     for (let i=0;i<word.length;i++){
       const cx = dir==='H' ? x+i : x; const cy = dir==='V' ? y+i : y;
-      const k = key(cx,cy); const cell = grid[k];
-      if (cell && cell.ch!==word[i]) return false;
+      const idx = gridIdx(cx,cy);
+      const cell = _scratchGrid[idx];
+      const ch = word.charCodeAt(i);
+      if (cell && cell!==ch){ valid=false; break outer; }
       if (!cell){
         if (dir==='H'){
-          if (grid[key(cx,cy-1)] || grid[key(cx,cy+1)]) return false;
+          if (_scratchGrid[gridIdx(cx,cy-1)]||_scratchGrid[gridIdx(cx,cy+1)]){ valid=false; break outer; }
         } else {
-          if (grid[key(cx-1,cy)] || grid[key(cx+1,cy)]) return false;
+          if (_scratchGrid[gridIdx(cx-1,cy)]||_scratchGrid[gridIdx(cx+1,cy)]){ valid=false; break outer; }
         }
+        touched.push(idx);
+        _scratchGrid[idx] = ch;
       }
-      grid[k] = {ch:word[i]};
     }
   }
-  return true;
+  for (const idx of touched) _scratchGrid[idx]=0;
+  return valid;
 }
 function localImprove(placements){
   let best = placements.map(p=>({...p}));
@@ -646,12 +642,23 @@ function generateCrossword(words, restarts=200, seed=0){
       [order[i],order[j]]=[order[j],order[i]];
     }
     const placements=[];
-    let grid={};
+    const grid = new Uint8Array(GRID_STRIDE*GRID_STRIDE);
+    const letterIndex = new Map();
     for (let w of order){
-      const p = placeWord(grid, w, placements, rng);
+      const p = placeWord(grid, letterIndex, w, rng);
       if (!p){ continue; }
       placements.push(p);
-      grid = buildGrid(placements);
+      for (let i=0; i<p.word.length; i++){
+        const cx = p.dir==='H' ? p.x+i : p.x;
+        const cy = p.dir==='V' ? p.y+i : p.y;
+        const idx = gridIdx(cx,cy);
+        if (!grid[idx]){
+          grid[idx] = p.word.charCodeAt(i);
+          const ch = p.word[i];
+          if (!letterIndex.has(ch)) letterIndex.set(ch,[]);
+          letterIndex.get(ch).push([cx,cy]);
+        }
+      }
     }
     if (placements.length===0) continue;
 
@@ -704,15 +711,15 @@ function render(layout, showSolution=true){
 
   for (let y=0;y<rows;y++){
     for (let x=0;x<cols;x++){
-      const k = key(x,y);
-      if (grid[k]){
+      const cellCode = grid[gridIdx(x,y)];
+      if (cellCode){
         ctx.fillStyle='#ffffff';
         ctx.fillRect(ox+x*cell, oy+y*cell, cell, cell);
         ctx.strokeStyle='#000000';
         ctx.strokeRect(ox+x*cell+0.5, oy+y*cell+0.5, cell-1, cell-1);
         if (showSolution){
           ctx.fillStyle='#111';
-          ctx.fillText(grid[k].ch, ox+x*cell + cell/2, oy+y*cell + cell/2 + 0.5);
+          ctx.fillText(String.fromCharCode(cellCode), ox+x*cell + cell/2, oy+y*cell + cell/2 + 0.5);
         }
       } else {
         ctx.fillStyle='#000000';
