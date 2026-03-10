@@ -239,7 +239,144 @@ function generateCrossword(words, restarts=200, seed=0){
   return {placements:best||[], meta:bestMeta||{bb:{w:0,h:0},letters:0,crossings:0,fillBBox:0,usedCells:0}};
 }
 
+/* Word Search */
+function generateWordSearch(words, restarts, seed, allowBackward, allowDiagonal, allowCrossing){
+  randSeed.value = seed|0;
+  const rng = () => rand(randSeed);
+
+  // Build direction set from user options
+  const DIRS = [
+    {dx:1,dy:0},{dx:0,dy:1},
+    ...(allowBackward ? [{dx:-1,dy:0},{dx:0,dy:-1}] : []),
+    ...(allowDiagonal ? [{dx:1,dy:1},{dx:1,dy:-1}] : []),
+    ...(allowDiagonal && allowBackward ? [{dx:-1,dy:1},{dx:-1,dy:-1}] : []),
+  ];
+
+  // Grid size: ~2.5× letter count gives ~40% fill before random letters
+  const totalLetters = words.reduce((s,w) => s+w.length, 0);
+  const maxLen = Math.max(...words.map(w => w.length));
+  const size = Math.min(Math.max(maxLen+2, Math.ceil(Math.sqrt(totalLetters*2.5))), 52);
+
+  const wsGrid = new Uint8Array(size*size);
+  const wsIdx = (x,y) => y*size+x;
+  const wsPlacements = [];
+
+  // Place all words longest-first
+  const sorted = [...words].sort((a,b) => b.length-a.length);
+
+  for (const word of sorted){
+    const candidates = [];
+    for (let y=0;y<size;y++){
+      for (let x=0;x<size;x++){
+        for (const {dx,dy} of DIRS){
+          const ex=x+dx*(word.length-1), ey=y+dy*(word.length-1);
+          if (ex<0||ex>=size||ey<0||ey>=size) continue;
+          let ok=true, overlaps=0;
+          for (let i=0;i<word.length;i++){
+            const cell=wsGrid[wsIdx(x+dx*i,y+dy*i)];
+            if (cell && cell!==word.charCodeAt(i)){ok=false;break;}
+            if (cell) overlaps++;
+          }
+          // Reject if word is entirely contained within existing content (e.g. FORM inside INFORMATION)
+          if (ok && overlaps < word.length) candidates.push({dx,dy,x,y,overlaps});
+        }
+      }
+    }
+    if (!candidates.length) continue;
+    let pool;
+    if (wsPlacements.length > 0){
+      const crossPool = allowCrossing ? candidates.filter(c => c.overlaps > 0) : [];
+      if (crossPool.length > 0){
+        // Crossing on and crossings exist: use them directly.
+        // Pick randomly so crossings scatter across wherever shared letters land.
+        pool = crossPool;
+      } else {
+        // No crossings available (or crossing off): spread by distance to nearest letter.
+        // Crossing positions naturally score ~0 here, so they never win when crossing is off.
+        const scored = candidates.map(c => {
+          const mx=c.x+c.dx*(word.length-1)/2, my=c.y+c.dy*(word.length-1)/2;
+          let minD=Infinity;
+          for (const p of wsPlacements)
+            for (let i=0;i<p.word.length;i++){
+              const d=(mx-p.x-p.dx*i)**2+(my-p.y-p.dy*i)**2;
+              if (d<minD) minD=d;
+            }
+          return {c, d:minD};
+        }).sort((a,b)=>b.d-a.d);
+        pool = scored.slice(0, Math.max(1, scored.length>>2)).map(e=>e.c);
+      }
+    } else {
+      pool = candidates;
+    }
+    const {x:px,y:py,dx:pdx,dy:pdy} = pool[Math.floor(rng()*pool.length)];
+    wsPlacements.push({word,x:px,y:py,dx:pdx,dy:pdy});
+    for (let i=0;i<word.length;i++) wsGrid[wsIdx(px+pdx*i,py+pdy*i)] = word.charCodeAt(i);
+  }
+
+  // Fill remaining cells with random letters
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (let i=0;i<size*size;i++){
+    if (!wsGrid[i]) wsGrid[i] = ALPHA.charCodeAt(Math.floor(rng()*26));
+  }
+
+  // Anti-collision: scan all 8 directions and remove accidental word appearances.
+  // Only fill-letter cells (not locked solution cells) are eligible for replacement.
+  const ALL_DIRS = [
+    {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+    {dx:1,dy:1},{dx:-1,dy:1},{dx:1,dy:-1},{dx:-1,dy:-1},
+  ];
+  // Mark solution cells as locked so they are never altered
+  const locked = new Uint8Array(size*size);
+  for (const {word,x,y,dx,dy} of wsPlacements){
+    for (let i=0;i<word.length;i++) locked[wsIdx(x+dx*i,y+dy*i)]=1;
+  }
+  // O(1) lookup for intentional placements
+  const placedKeys = new Set(wsPlacements.map(p=>`${p.word}|${p.x}|${p.y}|${p.dx}|${p.dy}`));
+
+  let changed=true, passes=0;
+  while (changed && passes++<20){
+    changed=false;
+    for (let sy=0;sy<size;sy++){
+      for (let sx=0;sx<size;sx++){
+        for (const {dx,dy} of ALL_DIRS){
+          for (const word of words){
+            const ex=sx+dx*(word.length-1), ey=sy+dy*(word.length-1);
+            if (ex<0||ex>=size||ey<0||ey>=size) continue;
+            let match=true;
+            for (let i=0;i<word.length;i++){
+              if (wsGrid[wsIdx(sx+dx*i,sy+dy*i)]!==word.charCodeAt(i)){match=false;break;}
+            }
+            if (!match) continue;
+            if (placedKeys.has(`${word}|${sx}|${sy}|${dx}|${dy}`)) continue;
+            // Accidental match — replace the first non-locked cell with a different letter
+            for (let i=0;i<word.length;i++){
+              const ci=wsIdx(sx+dx*i,sy+dy*i);
+              if (!locked[ci]){
+                let nc;
+                do { nc=ALPHA.charCodeAt(Math.floor(rng()*26)); } while(nc===wsGrid[ci]);
+                wsGrid[ci]=nc;
+                changed=true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const unplaced = words.filter(w => !wsPlacements.some(p => p.word===w));
+  return {type:'wordsearch', grid:wsGrid, size, placements:wsPlacements, words, unplaced};
+}
+
 onmessage = function(e){
-  const {words, restarts, seed} = e.data;
-  postMessage(generateCrossword(words, restarts, seed));
+  const {words, restarts, seed, puzzleType, allowBackward, allowDiagonal, allowCrossing} = e.data;
+  if (puzzleType === 'wordsearch'){
+    const result = generateWordSearch(words, restarts, seed, allowBackward, allowDiagonal, allowCrossing);
+    postMessage(result, [result.grid.buffer]);
+  } else {
+    const result = generateCrossword(words, restarts, seed);
+    result.type = 'crossword';
+    postMessage(result);
+  }
 };
